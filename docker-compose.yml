@@ -1,0 +1,53 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-spotthevuln}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-spotthevuln}
+      POSTGRES_DB: ${POSTGRES_DB:-spotthevuln}
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-spotthevuln}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Applies pending migrations. Uses the `builder` stage (full node_modules,
+  # including the Prisma CLI) rather than the pruned runtime image. Run
+  # before (re)starting `app` on a fresh database:
+  #   docker compose run --rm migrate
+  migrate:
+    build:
+      context: .
+      target: builder
+    profiles: ["tools"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-spotthevuln}:${POSTGRES_PASSWORD:-spotthevuln}@postgres:5432/${POSTGRES_DB:-spotthevuln}?schema=public
+      # No pooler in front of the local Postgres, so this is the same string.
+      DIRECT_URL: postgresql://${POSTGRES_USER:-spotthevuln}:${POSTGRES_PASSWORD:-spotthevuln}@postgres:5432/${POSTGRES_DB:-spotthevuln}?schema=public
+    command: npx prisma migrate deploy
+
+  app:
+    build:
+      context: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-spotthevuln}:${POSTGRES_PASSWORD:-spotthevuln}@postgres:5432/${POSTGRES_DB:-spotthevuln}?schema=public
+      DIRECT_URL: postgresql://${POSTGRES_USER:-spotthevuln}:${POSTGRES_PASSWORD:-spotthevuln}@postgres:5432/${POSTGRES_DB:-spotthevuln}?schema=public
+      AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in .env}
+      ATTEMPT_STALE_MINUTES: ${ATTEMPT_STALE_MINUTES:-20}
+    ports:
+      - "3000:3000"
+
+volumes:
+  postgres-data:
