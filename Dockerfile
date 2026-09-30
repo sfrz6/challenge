@@ -17,6 +17,9 @@ RUN npm install --no-audit --no-fund
 # ---- build ----
 FROM base AS builder
 WORKDIR /app
+# Emit Next's standalone server for this Docker image. Vercel never sets this,
+# so it builds natively there (standalone would 404 every route on Vercel).
+ENV BUILD_STANDALONE=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build

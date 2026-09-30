@@ -1,10 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Standalone is for the Docker image (self-hosting). On Vercel it breaks
-  // route mapping (every path 404s), so only emit it off-Vercel, where
-  // `VERCEL` is unset. Vercel then builds the app natively.
-  output: process.env.VERCEL ? undefined : "standalone",
+  // Standalone output is ONLY for the Docker image (self-hosting); the
+  // Dockerfile sets BUILD_STANDALONE=1 for its build. Everywhere else —
+  // Vercel especially — we build natively. Standalone on Vercel breaks
+  // route mapping and every path returns 404: NOT_FOUND. Opt-in (rather
+  // than detecting Vercel) so a native build is the default no matter how
+  // the host exposes its env.
+  output: process.env.BUILD_STANDALONE ? "standalone" : undefined,
 };
 
 export default nextConfig;
